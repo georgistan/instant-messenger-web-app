@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gunmetal: #474448;
+  --color-gunmetal-100: #0e0d0e;
+  --color-gunmetal-200: #1c1b1c;
+  --color-gunmetal-300: #2a282b;
+  --color-gunmetal-400: #383539;
+  --color-gunmetal-500: #474448;
+  --color-gunmetal-600: #6c676d;
+  --color-gunmetal-700: #918c93;
+  --color-gunmetal-800: #b6b2b7;
+  --color-gunmetal-900: #dad9db;
+
+  --color-shadow-grey: #2d232e;
+  --color-shadow-grey-100: #090709;
+  --color-shadow-grey-200: #120e13;
+  --color-shadow-grey-300: #1b151c;
+  --color-shadow-grey-400: #241c25;
+  --color-shadow-grey-500: #2d232e;
+  --color-shadow-grey-600: #5d485f;
+  --color-shadow-grey-700: #8d6d90;
+  --color-shadow-grey-800: #b39db5;
+  --color-shadow-grey-900: #d9ceda;
+
+  --color-bone: #e0ddcf;
+  --color-bone-100: #353122;
+  --color-bone-200: #6a6344;
+  --color-bone-300: #9e9367;
+  --color-bone-400: #bfb99b;
+  --color-bone-500: #e0ddcf;
+  --color-bone-600: #e7e5da;
+  --color-bone-700: #edebe3;
+  --color-bone-800: #f3f2ec;
+  --color-bone-900: #f9f8f6;
+
+  --color-taupe-grey: #534b52;
+  --color-taupe-grey-100: #110f10;
+  --color-taupe-grey-200: #211e21;
+  --color-taupe-grey-300: #322d31;
+  --color-taupe-grey-400: #423c42;
+  --color-taupe-grey-500: #534b52;
+  --color-taupe-grey-600: #786d76;
+  --color-taupe-grey-700: #9b9099;
+  --color-taupe-grey-800: #bcb5bb;
+  --color-taupe-grey-900: #dedadd;
+
+  --color-parchment: #f1f0ea;
+  --color-parchment-100: #393626;
+  --color-parchment-200: #726c4c;
+  --color-parchment-300: #a59e78;
+  --color-parchment-400: #cbc7b1;
+  --color-parchment-500: #f1f0ea;
+  --color-parchment-600: #f4f3ee;
+  --color-parchment-700: #f6f6f2;
+  --color-parchment-800: #f9f9f6;
+  --color-parchment-900: #fcfcfb;
+
+  --color-primary: var(--color-taupe-grey-500);
+  --color-primary-hover: var(--color-taupe-grey-600);
+  --color-surface: var(--color-parchment-900);
+  --color-surface-hover: var(--color-bone-800);
+  --color-surface-active: var(--color-bone-700);
+  --color-background: var(--color-parchment-600);
+  --color-border: var(--color-bone-500);
+  
+  --color-text-main: var(--color-gunmetal-100);
+  --color-text-muted: var(--color-gunmetal-600);
+  
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-text-main);
+  -webkit-font-smoothing: antialiased;
+}
+
+.telegram-bg {
+  background-color: var(--color-bone-600);
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M54.627 0l.83.83-2.69 2.69-.83-.83 2.69-2.69zM58.74 3.794l-2.69 2.69-.83-.83 2.69-2.69.83.83zM5.373 60l-.83-.83 2.69-2.69.83.83-2.69 2.69zM1.26 56.206l2.69-2.69.83.83-2.69 2.69-.83-.83z' fill='%23534b52' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
