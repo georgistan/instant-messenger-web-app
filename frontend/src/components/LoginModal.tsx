@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import type { User } from '../types';
 
 interface LoginModalProps {
-  onLogin: (username: string) => void;
+  onLogin: (user: User) => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onLogin }) => {
@@ -20,7 +21,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      const res = await fetch('http://localhost:3001/api/users', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

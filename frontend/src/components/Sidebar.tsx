@@ -1,14 +1,15 @@
 import React from 'react';
 import { Hash } from 'lucide-react';
-import type { Channel } from '../types';
+import type { Channel, User } from '../types';
 
 interface SidebarProps {
   channels: Channel[];
   activeChannelId: string;
   onSelectChannel: (channelId: string) => void;
+  user: User | null;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onSelectChannel }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onSelectChannel, user }) => {
   return (
     <div className="w-72 bg-parchment-600/50 backdrop-blur-md shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] rounded-[2.5rem] border border-border/50 h-full flex flex-col z-10 overflow-hidden">
       <div className="h-24 px-8 flex items-center mt-2">
@@ -48,10 +49,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onS
       <div className="mb-6 mx-4">
         <div className="flex items-center gap-3 p-3 bg-surface/80 backdrop-blur-sm border border-border/50 rounded-full shadow-sm hover:shadow-md transition-shadow cursor-pointer">
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-shadow-grey-400 flex items-center justify-center text-surface font-bold text-base shadow-inner">
-            Y
+            {user ? user.username[0].toUpperCase() : '?'}
           </div>
           <div className="flex flex-col flex-1">
-            <span className="text-sm font-bold text-text-main leading-tight">You</span>
+            <span className="text-sm font-bold text-text-main leading-tight">{user ? user.username : 'Not logged in'}</span>
             <span className="text-xs text-text-muted font-medium">Online</span>
           </div>
         </div>

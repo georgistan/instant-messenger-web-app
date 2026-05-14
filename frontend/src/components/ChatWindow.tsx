@@ -22,7 +22,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
 
     const fetchMessages = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/channels/${channel.name}/messages`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels/${channel.name}/messages`);
         if (res.ok) {
           const data = await res.json();
           if (mounted) {
@@ -32,14 +32,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
         }
       } catch (error) {
         console.error('Failed to fetch messages:', error);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
     };
 
     fetchMessages();
 
-    const socket = io('http://localhost:3001', {
-      transports: ['websocket']
-    });
+    const socket = io(import.meta.env.VITE_API_URL);
     socketRef.current = socket;
 
     socket.on('connect', () => {

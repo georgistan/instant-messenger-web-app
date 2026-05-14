@@ -22,7 +22,7 @@ function App() {
 
     const fetchChannels = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/channels');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels`);
         if (res.ok) {
           const data = await res.json();
           setChannels(data);
@@ -58,6 +58,7 @@ function App() {
         channels={channels}
         activeChannelId={activeChannelId}
         onSelectChannel={setActiveChannelId}
+        user={user}
       />
       {activeChannel ? (
         <ChatWindow channel={activeChannel} user={user} />
