@@ -25,7 +25,6 @@ const prisma = new PrismaClient({ adapter });
 app.use(cors());
 app.use(express.json());
 
-// API Routes
 app.get('/api/channels', async (_req, res) => {
   try {
     const channels = await prisma.channel.findMany({
@@ -37,15 +36,14 @@ app.get('/api/channels', async (_req, res) => {
   }
 });
 
-app.get('/api/channels/:id/messages', async (req, res) => {
+app.get('/api/channels/:name/messages', async (req, res) => {
   try {
     const messages = await prisma.message.findMany({
-      where: { channelId: req.params.id },
+      where: { channel: { name: req.params.name } },
       include: { sender: true },
       orderBy: { createdAt: 'asc' }
     });
     
-    // Format for frontend
     const formatted = messages.map(m => ({
       id: m.id,
       senderId: m.senderId,
@@ -53,7 +51,7 @@ app.get('/api/channels/:id/messages', async (req, res) => {
       senderAvatar: m.sender.avatar,
       text: m.text,
       timestamp: m.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isOwnMessage: false // will be determined by frontend
+      isOwnMessage: false
     }));
     
     res.json(formatted);
@@ -78,12 +76,10 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// Socket.io
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('join_channel', (channelId) => {
-    // Leave previous channels
     Array.from(socket.rooms).forEach(room => {
       if (room !== socket.id) socket.leave(room);
     });
@@ -95,7 +91,6 @@ io.on('connection', (socket) => {
     const { channelId, senderId, text } = data;
     
     try {
-      // Save to db
       const message = await prisma.message.create({
         data: { channelId, senderId, text },
         include: { sender: true }
@@ -110,7 +105,6 @@ io.on('connection', (socket) => {
         timestamp: message.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      // Broadcast to channel
       io.to(channelId).emit('receive_message', formatted);
     } catch (error) {
       console.error('Error saving message:', error);

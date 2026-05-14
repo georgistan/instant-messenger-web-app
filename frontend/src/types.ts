@@ -13,5 +13,11 @@ export interface Channel {
   name: string;
   description?: string;
   icon?: string;
-  messages: Message[];
+  messages?: Message[];
+}
+
+export interface User {
+  id: string;
+  username: string;
+  avatar?: string | null;
 }
