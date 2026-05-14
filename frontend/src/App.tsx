@@ -58,6 +58,7 @@ function App() {
         channels={channels}
         activeChannelId={activeChannelId}
         onSelectChannel={setActiveChannelId}
+        user={user}
       />
       {activeChannel ? (
         <ChatWindow channel={activeChannel} user={user} />

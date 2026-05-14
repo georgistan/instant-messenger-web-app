@@ -32,14 +32,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
         }
       } catch (error) {
         console.error('Failed to fetch messages:', error);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
     };
 
     fetchMessages();
 
-    const socket = io('http://localhost:3001', {
-      transports: ['websocket']
-    });
+    const socket = io('http://localhost:3001');
     socketRef.current = socket;
 
     socket.on('connect', () => {
