@@ -77,10 +77,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, searchQue
           <p className="text-5xl leading-tight px-2 select-none">{text}</p>
         ) : (
           <div
-            className={`max-w-[65%] shadow-sm relative transition-all duration-200 hover:shadow-md overflow-hidden ${
+            className={`max-w-[420px] shadow-md relative transition-all duration-200 hover:shadow-lg overflow-hidden ${
               isOwnMessage
-                ? 'bg-bone text-gunmetal-100 rounded-[2rem] rounded-br-md'
-                : 'bg-surface border border-bone-600 text-gunmetal-100 rounded-[2rem] rounded-bl-md'
+                ? 'bg-surface border border-bone-400 text-gunmetal-100 rounded-[2rem] rounded-br-md'
+                : 'bg-surface border border-bone-400 text-gunmetal-100 rounded-[2rem] rounded-bl-md'
             }`}
           >
             {message.fileType === 'image' && message.fileUrl && (
