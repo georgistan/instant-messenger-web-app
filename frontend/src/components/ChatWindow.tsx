@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { Channel, Message, User } from '../types';
 import { MessageBubble } from './MessageBubble';
-import { Hash, Send, Paperclip, Smile } from 'lucide-react';
+import { Hash, Send, Paperclip, Smile, Search, SearchX, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface ChatWindowProps {
   channel: Channel;
@@ -12,6 +12,9 @@ interface ChatWindowProps {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [matchIndex, setMatchIndex] = useState(-1);
+  const [matchingMessageIds, setMatchingMessageIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -22,7 +25,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
 
     const fetchMessages = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels/${channel.name}/messages`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels/${channel.name}/messages`, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
+        });
         if (res.ok) {
           const data = await res.json();
           if (mounted) {
@@ -39,7 +46,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
 
     fetchMessages();
 
-    const socket = io(import.meta.env.VITE_API_URL);
+    const socket = io(import.meta.env.VITE_API_URL, {
+      extraHeaders: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -59,8 +70,46 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
   }, [channel.id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!searchQuery.trim()) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setMatchingMessageIds([]);
+      setMatchIndex(-1);
+      return;
+    }
+    const query = searchQuery.toLowerCase();
+    const matches = messages.filter(m => m.text.toLowerCase().includes(query)).map(m => m.id);
+    setMatchingMessageIds(matches);
+    if (matches.length > 0) {
+      setMatchIndex(matches.length - 1);
+    } else {
+      setMatchIndex(-1);
+    }
+  }, [searchQuery, messages]);
+
+  useEffect(() => {
+    if (matchIndex >= 0 && matchIndex < matchingMessageIds.length) {
+      const messageId = matchingMessageIds[matchIndex];
+      const element = document.getElementById(`message-${messageId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [matchIndex, matchingMessageIds]);
+
+  const handleNextMatch = () => {
+    if (matchingMessageIds.length === 0) return;
+    setMatchIndex(prev => (prev < matchingMessageIds.length - 1 ? prev + 1 : 0));
+  };
+
+  const handlePrevMatch = () => {
+    if (matchingMessageIds.length === 0) return;
+    setMatchIndex(prev => (prev > 0 ? prev - 1 : matchingMessageIds.length - 1));
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +126,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
 
   return (
     <div className="flex-1 flex flex-col h-full relative telegram-bg rounded-[2.5rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] border border-border/40 overflow-hidden">
-      <div className="absolute top-6 left-6 right-6 z-10 flex justify-center pointer-events-none">
+      <div className="absolute top-6 left-6 right-6 z-10 flex flex-col items-center gap-3 pointer-events-none">
         <div className="bg-surface/90 backdrop-blur-md shadow-sm border border-border/50 px-6 py-3 rounded-full flex items-center gap-3 pointer-events-auto">
           <div className="bg-primary/10 p-1.5 rounded-full">
             <Hash size={18} className="text-primary" />
@@ -86,14 +135,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
           {channel.description && (
             <>
               <div className="w-1 h-1 rounded-full bg-border mx-1" />
-              <span className="text-xs text-text-muted font-medium">{channel.description}</span>
+              <span className="text-xs text-text-muted font-medium truncate max-w-[300px]">{channel.description}</span>
             </>
+          )}
+        </div>
+
+        <div className="pointer-events-auto relative max-w-xs w-full flex items-center bg-surface/90 backdrop-blur-md border border-border/50 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 rounded-full shadow-sm transition-all overflow-hidden group">
+          <Search className="ml-4 text-text-muted w-4 h-4 group-focus-within:text-primary transition-colors shrink-0" />
+          <input 
+            type="text" 
+            placeholder="Search chat..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-transparent py-2 pl-3 pr-2 text-sm text-text-main placeholder-text-muted outline-none"
+          />
+          {searchQuery && (
+            <div className="flex items-center gap-1 pr-3 shrink-0">
+              <span className="text-xs text-text-muted mr-1 font-medium">
+                {matchingMessageIds.length > 0 ? `${matchIndex + 1}/${matchingMessageIds.length}` : '0/0'}
+              </span>
+              <button onClick={handlePrevMatch} className="p-1 text-text-muted hover:text-text-main hover:bg-surface-active rounded transition-colors" disabled={matchingMessageIds.length === 0}>
+                <ChevronUp size={14} />
+              </button>
+              <button onClick={handleNextMatch} className="p-1 text-text-muted hover:text-text-main hover:bg-surface-active rounded transition-colors" disabled={matchingMessageIds.length === 0}>
+                <ChevronDown size={14} />
+              </button>
+            </div>
           )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-28 pb-32 scroll-smooth">
-        <div className="max-w-4xl mx-auto flex flex-col justify-end min-h-full">
+      <div className="flex-1 overflow-y-auto px-6 pt-36 pb-32 scroll-smooth">
+        <div className="w-full flex flex-col justify-end min-h-full">
           <div className="mb-12 text-center bg-surface/80 backdrop-blur-sm p-8 rounded-[2.5rem] w-fit mx-auto shadow-sm border border-border/30">
             <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/5 rounded-[1.5rem] rotate-3 flex items-center justify-center mx-auto mb-6 shadow-inner">
               <Hash size={36} className="text-primary -rotate-3" />
@@ -105,8 +178,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
           <div className="space-y-4">
             {!isLoading && messages.map((message) => {
               const isOwnMessage = user ? message.senderId === user.id : false;
-              return <MessageBubble key={message.id} message={{ ...message, isOwnMessage }} />;
+              const isFocusedMatch = matchingMessageIds[matchIndex] === message.id;
+              return (
+                <div key={message.id} id={`message-${message.id}`}>
+                  <MessageBubble 
+                    message={{ ...message, isOwnMessage }} 
+                    searchQuery={searchQuery} 
+                    isFocusedMatch={isFocusedMatch} 
+                  />
+                </div>
+              );
             })}
+            
+            {!isLoading && messages.length === 0 && (
+               <div className="text-center text-taupe-grey-500 py-4">No messages yet. Start the conversation!</div>
+            )}
+            
             {isLoading && (
               <div className="text-center text-taupe-grey-500 py-4">Loading messages...</div>
             )}
@@ -116,7 +203,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
       </div>
 
       <div className="absolute bottom-6 left-6 right-6 z-10 pointer-events-none">
-        <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative group pointer-events-auto shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-full">
+        <form onSubmit={handleSendMessage} className="w-full relative group pointer-events-auto shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-full">
           <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center gap-2 text-text-muted group-focus-within:text-primary transition-colors z-20">
             <button type="button" className="hover:text-text-main transition-colors p-2 rounded-full hover:bg-surface-active"><Paperclip size={20} /></button>
           </div>
