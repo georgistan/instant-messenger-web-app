@@ -13,6 +13,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [matchIndex, setMatchIndex] = useState(-1);
   const [matchingMessageIds, setMatchingMessageIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,7 +112,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     setMatchIndex(prev => (prev > 0 ? prev - 1 : matchingMessageIds.length - 1));
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!inputValue.trim() || !user || !socketRef.current) return;
 
@@ -138,34 +139,44 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
               <span className="text-xs text-text-muted font-medium truncate max-w-[300px]">{channel.description}</span>
             </>
           )}
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
+            onClick={() => { setIsSearchOpen(o => !o); setSearchQuery(''); }}
+            className="p-1.5 rounded-full hover:bg-surface-active transition-colors text-text-muted hover:text-primary"
+          >
+            {isSearchOpen ? <SearchX size={16} /> : <Search size={16} />}
+          </button>
         </div>
 
-        <div className="pointer-events-auto relative max-w-xs w-full flex items-center bg-surface/90 backdrop-blur-md border border-border/50 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 rounded-full shadow-sm transition-all overflow-hidden group">
-          <Search className="ml-4 text-text-muted w-4 h-4 group-focus-within:text-primary transition-colors shrink-0" />
-          <input 
-            type="text" 
-            placeholder="Search chat..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-transparent py-2 pl-3 pr-2 text-sm text-text-main placeholder-text-muted outline-none"
-          />
-          {searchQuery && (
-            <div className="flex items-center gap-1 pr-3 shrink-0">
-              <span className="text-xs text-text-muted mr-1 font-medium">
-                {matchingMessageIds.length > 0 ? `${matchIndex + 1}/${matchingMessageIds.length}` : '0/0'}
-              </span>
-              <button onClick={handlePrevMatch} className="p-1 text-text-muted hover:text-text-main hover:bg-surface-active rounded transition-colors" disabled={matchingMessageIds.length === 0}>
-                <ChevronUp size={14} />
-              </button>
-              <button onClick={handleNextMatch} className="p-1 text-text-muted hover:text-text-main hover:bg-surface-active rounded transition-colors" disabled={matchingMessageIds.length === 0}>
-                <ChevronDown size={14} />
-              </button>
-            </div>
-          )}
-        </div>
+        {isSearchOpen && (
+          <div className="pointer-events-auto relative max-w-xs w-full flex items-center bg-surface/90 backdrop-blur-md border border-border/50 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10 rounded-full shadow-sm transition-all overflow-hidden group">
+            <Search className="ml-4 text-text-muted w-4 h-4 group-focus-within:text-primary transition-colors shrink-0" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search chat..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-transparent py-2 pl-3 pr-2 text-sm text-text-main placeholder-text-muted outline-none"
+            />
+            {searchQuery && (
+              <div className="flex items-center gap-1 pr-3 shrink-0">
+                <span className="text-xs text-text-muted mr-1 font-medium">
+                  {matchingMessageIds.length > 0 ? `${matchIndex + 1}/${matchingMessageIds.length}` : '0/0'}
+                </span>
+                <button onClick={handlePrevMatch} className="p-1 text-text-muted hover:text-text-main hover:bg-surface-active rounded transition-colors" disabled={matchingMessageIds.length === 0}>
+                  <ChevronUp size={14} />
+                </button>
+                <button onClick={handleNextMatch} className="p-1 text-text-muted hover:text-text-main hover:bg-surface-active rounded transition-colors" disabled={matchingMessageIds.length === 0}>
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pt-36 pb-32 scroll-smooth">
+      <div className={`flex-1 overflow-y-auto px-6 ${isSearchOpen ? 'pt-36' : 'pt-24'} pb-32 scroll-smooth transition-all`}>
         <div className="w-full flex flex-col justify-end min-h-full">
           <div className="mb-12 text-center bg-surface/80 backdrop-blur-sm p-8 rounded-[2.5rem] w-fit mx-auto shadow-sm border border-border/30">
             <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-primary/5 rounded-[1.5rem] rotate-3 flex items-center justify-center mx-auto mb-6 shadow-inner">
