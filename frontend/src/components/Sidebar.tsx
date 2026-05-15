@@ -1,5 +1,5 @@
-import React from 'react';
-import { Hash } from 'lucide-react';
+import React, { useState } from 'react';
+import { Hash, LogOut } from 'lucide-react';
 import type { Channel, User } from '../types';
 
 interface SidebarProps {
@@ -7,9 +7,12 @@ interface SidebarProps {
   activeChannelId: string;
   onSelectChannel: (channelId: string) => void;
   user: User | null;
+  onLogout: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onSelectChannel, user }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onSelectChannel, user, onLogout }) => {
+  const [showConfirm, setShowConfirm] = useState(false);
+
   return (
     <div className="w-72 bg-parchment-600/50 backdrop-blur-md shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] rounded-[2.5rem] border border-border/50 h-full flex flex-col z-10 overflow-hidden">
       <div className="h-24 px-8 flex items-center mt-2">
@@ -20,7 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onS
           ChatApp
         </h1>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto py-2 px-4">
         <div className="px-4 mb-4">
           <h2 className="text-[0.7rem] font-bold text-text-muted uppercase tracking-widest">Channels</h2>
@@ -45,17 +48,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ channels, activeChannelId, onS
           ))}
         </ul>
       </div>
-      
+
       <div className="mb-6 mx-4">
-        <div className="flex items-center gap-3 p-3 bg-surface/80 backdrop-blur-sm border border-border/50 rounded-full shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-shadow-grey-400 flex items-center justify-center text-surface font-bold text-base shadow-inner">
-            {user ? user.username[0].toUpperCase() : '?'}
+        {showConfirm ? (
+          <div className="p-4 bg-surface/80 backdrop-blur-sm border border-border/50 rounded-3xl shadow-sm flex flex-col gap-3">
+            <p className="text-sm font-semibold text-text-main text-center">Are you sure you want to sign out?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2 rounded-full text-sm font-semibold border border-border/50 text-text-muted hover:bg-surface-active transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onLogout}
+                className="flex-1 py-2 rounded-full text-sm font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
-          <div className="flex flex-col flex-1">
-            <span className="text-sm font-bold text-text-main leading-tight">{user ? user.username : 'Not logged in'}</span>
-            <span className="text-xs text-text-muted font-medium">Online</span>
+        ) : (
+          <div className="flex items-center gap-3 p-3 bg-surface/80 backdrop-blur-sm border border-border/50 rounded-full shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-shadow-grey-400 flex items-center justify-center text-surface font-bold text-base shadow-inner shrink-0">
+              {user ? user.username[0].toUpperCase() : '?'}
+            </div>
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-sm font-bold text-text-main leading-tight truncate">{user ? user.username : 'Not logged in'}</span>
+              <span className="text-xs text-text-muted font-medium">Online</span>
+            </div>
+            <button
+              onClick={() => setShowConfirm(true)}
+              title="Sign out"
+              className="p-2 rounded-full text-text-muted hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+            >
+              <LogOut size={16} />
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

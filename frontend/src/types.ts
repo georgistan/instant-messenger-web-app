@@ -4,6 +4,9 @@ export interface Message {
   senderName: string;
   senderAvatar?: string;
   text: string;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  fileType?: string | null;
   timestamp: string;
   isOwnMessage: boolean;
 }
