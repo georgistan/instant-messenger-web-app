@@ -7,11 +7,13 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  username  String    @unique
-  avatar    String?
-  messages  Message[]
-  createdAt DateTime  @default(now())
+  id          String    @id @default(uuid())
+  username    String    @unique
+  password    String    @default("")
+  passwordKey String    @unique @default("")
+  avatar      String?
+  messages    Message[]
+  createdAt   DateTime  @default(now())
 }
 
 model Channel {
@@ -25,11 +27,14 @@ model Channel {
 model Message {
   id        String   @id @default(uuid())
   text      String
+  fileUrl   String?
+  fileName  String?
+  fileType  String?
   createdAt DateTime @default(now())
-  
+
   senderId  String
   sender    User     @relation(fields: [senderId], references: [id])
-  
+
   channelId String
   channel   Channel  @relation(fields: [channelId], references: [id])
 }

@@ -11,3 +11,4 @@ build/
 # Ignore backend
 backend/
 docker-compose.yml
+uploads/

@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import type { Channel, Message, User } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { Hash, Send, Paperclip, Smile, Search, SearchX, ChevronUp, ChevronDown } from 'lucide-react';
+import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 
 interface ChatWindowProps {
   channel: Channel;
@@ -16,9 +17,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [matchIndex, setMatchIndex] = useState(-1);
   const [matchingMessageIds, setMatchingMessageIds] = useState<string[]>([]);
+  const [isEmojiOpen, setIsEmojiOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; previewUrl: string | null }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const newEntries = files.map(file => ({
+      file,
+      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+    }));
+    setPendingFiles(prev => [...prev, ...newEntries]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles(prev => {
+      const entry = prev[index];
+      if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setInputValue(prev => prev + emojiData.emoji);
+    setIsEmojiOpen(false);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -27,16 +55,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     const fetchMessages = async () => {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels/${channel.name}/messages`, {
-          headers: {
-            'ngrok-skip-browser-warning': 'true'
-          }
+          headers: { 'ngrok-skip-browser-warning': 'true' }
         });
         if (res.ok) {
           const data = await res.json();
-          if (mounted) {
-            setMessages(data);
-            setIsLoading(false);
-          }
+          if (mounted) { setMessages(data); setIsLoading(false); }
         }
       } catch (error) {
         console.error('Failed to fetch messages:', error);
@@ -48,26 +71,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     fetchMessages();
 
     const socket = io(import.meta.env.VITE_API_URL, {
-      extraHeaders: {
-        'ngrok-skip-browser-warning': 'true'
-      }
+      extraHeaders: { 'ngrok-skip-browser-warning': 'true' }
     });
     socketRef.current = socket;
 
-    socket.on('connect', () => {
-      socket.emit('join_channel', channel.id);
-    });
+    socket.on('connect', () => { socket.emit('join_channel', channel.id); });
 
     socket.on('receive_message', (newMessage: Message) => {
-      if (mounted) {
-        setMessages(prev => [...prev, newMessage]);
-      }
+      if (mounted) setMessages(prev => [...prev, newMessage]);
     });
 
-    return () => {
-      mounted = false;
-      socket.disconnect();
-    };
+    socket.on('message_deleted', ({ messageId }: { messageId: string }) => {
+      if (mounted) setMessages(prev => prev.filter(m => m.id !== messageId));
+    });
+
+    return () => { mounted = false; socket.disconnect(); };
   }, [channel.id]);
 
   useEffect(() => {
@@ -85,20 +103,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     const query = searchQuery.toLowerCase();
     const matches = messages.filter(m => m.text.toLowerCase().includes(query)).map(m => m.id);
     setMatchingMessageIds(matches);
-    if (matches.length > 0) {
-      setMatchIndex(matches.length - 1);
-    } else {
-      setMatchIndex(-1);
-    }
+    setMatchIndex(matches.length > 0 ? matches.length - 1 : -1);
   }, [searchQuery, messages]);
 
   useEffect(() => {
     if (matchIndex >= 0 && matchIndex < matchingMessageIds.length) {
-      const messageId = matchingMessageIds[matchIndex];
-      const element = document.getElementById(`message-${messageId}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      const element = document.getElementById(`message-${matchingMessageIds[matchIndex]}`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [matchIndex, matchingMessageIds]);
 
@@ -112,17 +123,59 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     setMatchIndex(prev => (prev > 0 ? prev - 1 : matchingMessageIds.length - 1));
   };
 
-  const handleSendMessage = (e: { preventDefault(): void }) => {
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return;
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ senderId: user.id }),
+      });
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+    }
+  };
+
+  const handleSendMessage = async (e: { preventDefault(): void }) => {
     e.preventDefault();
-    if (!inputValue.trim() || !user || !socketRef.current) return;
+    if (!user || !socketRef.current) return;
+    if (!inputValue.trim() && pendingFiles.length === 0) return;
 
-    socketRef.current.emit('send_message', {
-      channelId: channel.id,
-      senderId: user.id,
-      text: inputValue.trim(),
-    });
+    setIsUploading(true);
+    try {
+      for (const entry of pendingFiles) {
+        const formData = new FormData();
+        formData.append('file', entry.file);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
+          method: 'POST',
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+          body: formData,
+        });
+        const { fileUrl, fileName, fileType } = await res.json();
+        socketRef.current.emit('send_message', {
+          channelId: channel.id,
+          senderId: user.id,
+          text: '',
+          fileUrl,
+          fileName,
+          fileType,
+        });
+        if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+      }
+      setPendingFiles([]);
 
-    setInputValue('');
+      if (inputValue.trim()) {
+        socketRef.current.emit('send_message', {
+          channelId: channel.id,
+          senderId: user.id,
+          text: inputValue.trim(),
+        });
+        setInputValue('');
+      }
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -192,19 +245,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
               const isFocusedMatch = matchingMessageIds[matchIndex] === message.id;
               return (
                 <div key={message.id} id={`message-${message.id}`}>
-                  <MessageBubble 
-                    message={{ ...message, isOwnMessage }} 
-                    searchQuery={searchQuery} 
-                    isFocusedMatch={isFocusedMatch} 
+                  <MessageBubble
+                    message={{ ...message, isOwnMessage }}
+                    searchQuery={searchQuery}
+                    isFocusedMatch={isFocusedMatch}
+                    onDelete={handleDeleteMessage}
                   />
                 </div>
               );
             })}
-            
             {!isLoading && messages.length === 0 && (
-               <div className="text-center text-taupe-grey-500 py-4">No messages yet. Start the conversation!</div>
+              <div className="text-center text-taupe-grey-500 py-4">No messages yet. Start the conversation!</div>
             )}
-            
             {isLoading && (
               <div className="text-center text-taupe-grey-500 py-4">Loading messages...</div>
             )}
@@ -213,10 +265,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
         </div>
       </div>
 
-      <div className="absolute bottom-6 left-6 right-6 z-10 pointer-events-none">
+      <div className="absolute bottom-6 left-6 right-6 z-10 pointer-events-none flex flex-col gap-2">
+        {pendingFiles.length > 0 && (
+          <div className="pointer-events-auto flex gap-2 flex-wrap bg-surface/95 backdrop-blur-md border border-border/60 rounded-3xl px-4 py-3 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+            {pendingFiles.map((entry, i) => (
+              <div key={i} className="relative">
+                {entry.previewUrl ? (
+                  <img src={entry.previewUrl} className="w-20 h-20 object-cover rounded-2xl border border-border/40" />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl border border-border/40 bg-surface flex flex-col items-center justify-center gap-1 px-1">
+                    <span className="text-2xl">📎</span>
+                    <span className="text-[10px] text-text-muted truncate w-full text-center">{entry.file.name}</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removePendingFile(i)}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleSendMessage} className="w-full relative group pointer-events-auto shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-full">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileSelect}
+            accept="image/*,.pdf,.doc,.docx,.txt,.zip"
+          />
           <div className="absolute left-5 top-1/2 -translate-y-1/2 flex items-center gap-2 text-text-muted group-focus-within:text-primary transition-colors z-20">
-            <button type="button" className="hover:text-text-main transition-colors p-2 rounded-full hover:bg-surface-active"><Paperclip size={20} /></button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className={`hover:text-text-main transition-colors p-2 rounded-full hover:bg-surface-active ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Paperclip size={20} />
+            </button>
           </div>
           <input
             type="text"
@@ -227,12 +317,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
             disabled={!user || isLoading}
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
-            <button type="button" className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-surface-active">
-              <Smile size={20} />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsEmojiOpen(o => !o)}
+                className={`p-2 transition-colors rounded-full hover:bg-surface-active ${isEmojiOpen ? 'text-primary' : 'text-text-muted hover:text-text-main'}`}
+              >
+                <Smile size={20} />
+              </button>
+              {isEmojiOpen && (
+                <div className="absolute bottom-12 right-0 z-50 shadow-xl rounded-2xl overflow-hidden">
+                  <EmojiPicker
+                    onEmojiClick={handleEmojiClick}
+                    theme={Theme.LIGHT}
+                    width={320}
+                    height={400}
+                  />
+                </div>
+              )}
+            </div>
             <button
               type="submit"
-              disabled={!user || !inputValue.trim() || isLoading}
+              disabled={!user || (!inputValue.trim() && pendingFiles.length === 0) || isLoading || isUploading}
               className="p-2.5 bg-primary text-surface rounded-full hover:bg-primary-hover shadow-md transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
             >
               <Send size={18} className="translate-x-[1px] translate-y-[1px]" />

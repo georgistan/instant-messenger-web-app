@@ -23,16 +23,12 @@ function App() {
     const fetchChannels = async () => {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels`, {
-          headers: {
-            'ngrok-skip-browser-warning': 'true'
-          }
+          headers: { 'ngrok-skip-browser-warning': 'true' }
         });
         if (res.ok) {
           const data = await res.json();
           setChannels(data);
-          if (data.length > 0) {
-            setActiveChannelId(data[0].id);
-          }
+          if (data.length > 0) setActiveChannelId(data[0].id);
         }
       } catch (error) {
         console.error('Failed to fetch channels:', error);
@@ -43,6 +39,12 @@ function App() {
 
     fetchChannels();
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('messenger_user');
+    localStorage.removeItem('messenger_token');
+    setUser(null);
+  };
 
   const activeChannel = channels.find(c => c.id === activeChannelId) || channels[0];
 
@@ -63,6 +65,7 @@ function App() {
         activeChannelId={activeChannelId}
         onSelectChannel={setActiveChannelId}
         user={user}
+        onLogout={handleLogout}
       />
       {activeChannel ? (
         <ChatWindow channel={activeChannel} user={user} />
