@@ -22,7 +22,11 @@ function App() {
 
     const fetchChannels = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels`);
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels`, {
+          headers: {
+            'ngrok-skip-browser-warning': 'true'
+          }
+        });
         if (res.ok) {
           const data = await res.json();
           setChannels(data);

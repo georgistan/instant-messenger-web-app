@@ -25,6 +25,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLogin }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         },
         body: JSON.stringify({ username: username.trim() }),
       });
