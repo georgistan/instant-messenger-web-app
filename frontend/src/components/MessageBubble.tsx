@@ -85,14 +85,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, searchQue
           >
             {message.fileType === 'image' && message.fileUrl && (
               <img
-                src={`${import.meta.env.VITE_API_URL}${message.fileUrl}`}
+                src={`${import.meta.env.VITE_API_URL}${message.fileUrl}?ngrok-skip-browser-warning=true`}
                 alt={message.fileName ?? 'image'}
                 className="max-w-full max-h-64 object-cover w-full"
               />
             )}
             {message.fileType === 'file' && message.fileUrl && (
               <a
-                href={`${import.meta.env.VITE_API_URL}${message.fileUrl}`}
+                href={`${import.meta.env.VITE_API_URL}${message.fileUrl}?ngrok-skip-browser-warning=true`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-3 px-4 py-3 hover:opacity-80 transition-opacity"
