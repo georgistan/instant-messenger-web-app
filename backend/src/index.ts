@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -6,9 +7,9 @@ import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import dotenv from 'dotenv';
-import bcrypt from 'bcrypt';
+import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
-import { createHash } from 'crypto';
+import { randomBytes } from 'crypto';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,7 +30,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET env variable is required');
+
+const auth = (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).end();
+  try {
+    (req as any).user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).end();
+  }
+};
 
 const app = express();
 const server = http.createServer(app);
@@ -48,7 +61,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
 
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', auth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const fileUrl = `/uploads/${req.file.filename}`;
   const fileType = req.file.mimetype.startsWith('image/') ? 'image' : 'file';
@@ -89,14 +102,12 @@ app.get('/api/channels/:name/messages', async (req, res) => {
   }
 });
 
-app.delete('/api/messages/:messageId', async (req, res) => {
-  const { messageId } = req.params;
-  const { senderId } = req.body;
-  if (!senderId) return res.status(400).json({ error: 'senderId required' });
+app.delete('/api/messages/:messageId', auth, async (req, res) => {
+  const messageId = req.params.messageId as string;
+  const senderId = (req as any).user.userId;
   try {
     const message = await prisma.message.findUnique({ where: { id: messageId } });
-    if (!message) return res.status(404).json({ error: 'Message not found' });
-    if (message.senderId !== senderId) return res.status(403).json({ error: 'Forbidden' });
+    if (!message || message.senderId !== senderId) return res.status(403).end();
     await prisma.message.delete({ where: { id: messageId } });
     io.to(message.channelId).emit('message_deleted', { messageId });
     res.json({ success: true });
@@ -110,16 +121,13 @@ app.post('/api/auth/register', async (req, res) => {
   if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-  const passwordKey = createHash('sha256').update(password).digest('hex');
   try {
     const existingUser = await prisma.user.findUnique({ where: { username } });
     if (existingUser) return res.status(409).json({ error: 'Username already taken' });
 
-    const existingPassword = await prisma.user.findUnique({ where: { passwordKey } });
-    if (existingPassword) return res.status(409).json({ error: 'This password is already used by another account' });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { username, password: hashedPassword, passwordKey } });
+    const salt = randomBytes(32);
+    const hashedPassword = await argon2.hash(password, { type: argon2.argon2id, salt });
+    const user = await prisma.user.create({ data: { username, password: hashedPassword } });
     const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ id: user.id, username: user.username, avatar: user.avatar, token });
   } catch {
@@ -134,13 +142,24 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { username } });
     if (!user) return res.status(401).json({ error: 'Invalid username or password' });
 
-    const valid = await bcrypt.compare(password, user.password);
+    const valid = await argon2.verify(user.password, password);
     if (!valid) return res.status(401).json({ error: 'Invalid username or password' });
 
     const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
     res.json({ id: user.id, username: user.username, avatar: user.avatar, token });
   } catch {
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('unauthorized'));
+  try {
+    socket.data.userId = (jwt.verify(token, JWT_SECRET) as any).userId;
+    next();
+  } catch {
+    next(new Error('unauthorized'));
   }
 });
 
@@ -155,7 +174,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send_message', async (data) => {
-    const { channelId, senderId, text, fileUrl, fileName, fileType } = data;
+    const { channelId, text, fileUrl, fileName, fileType } = data;
+    const senderId = socket.data.userId;
     try {
       const message = await prisma.message.create({
         data: { channelId, senderId, text, fileUrl, fileName, fileType },
