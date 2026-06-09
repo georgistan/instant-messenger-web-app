@@ -71,7 +71,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     fetchMessages();
 
     const socket = io(import.meta.env.VITE_API_URL, {
-      extraHeaders: { 'ngrok-skip-browser-warning': 'true' }
+      extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
+      auth: { token: localStorage.getItem('messenger_token') ?? '' },
     });
     socketRef.current = socket;
 
@@ -129,8 +130,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
     try {
       await fetch(`${import.meta.env.VITE_API_URL}/api/messages/${messageId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ senderId: user.id }),
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${localStorage.getItem('messenger_token')}`,
+        },
       });
     } catch (error) {
       console.error('Failed to delete message:', error);
@@ -149,7 +152,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
         formData.append('file', entry.file);
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/upload`, {
           method: 'POST',
-          headers: { 'ngrok-skip-browser-warning': 'true' },
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': `Bearer ${localStorage.getItem('messenger_token')}`,
+          },
           body: formData,
         });
         const { fileUrl, fileName, fileType } = await res.json();
