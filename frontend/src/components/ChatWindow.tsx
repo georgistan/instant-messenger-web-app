@@ -1,9 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-import type { Channel, Message, User } from '../types';
+import type { Channel, User } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { Hash, Send, Paperclip, Smile, Search, SearchX, ChevronUp, ChevronDown } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
+import { useSocket } from '../hooks/UseSocket';
+import { useMessageSearch } from '../hooks/UseMessageSearch';
+import { useFileUpload } from '../hooks/UseFileUpload';
 
 interface ChatWindowProps {
   channel: Channel;
@@ -11,117 +13,30 @@ interface ChatWindowProps {
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [matchIndex, setMatchIndex] = useState(-1);
-  const [matchingMessageIds, setMatchingMessageIds] = useState<string[]>([]);
   const [isEmojiOpen, setIsEmojiOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<{ file: File; previewUrl: string | null }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const socketRef = useRef<Socket | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    const newEntries = files.map(file => ({
-      file,
-      previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-    }));
-    setPendingFiles(prev => [...prev, ...newEntries]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const removePendingFile = (index: number) => {
-    setPendingFiles(prev => {
-      const entry = prev[index];
-      if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
-  const handleEmojiClick = (emojiData: EmojiClickData) => {
-    setInputValue(prev => prev + emojiData.emoji);
-    setIsEmojiOpen(false);
-  };
-
-  useEffect(() => {
-    let mounted = true;
-    setIsLoading(true);
-
-    const fetchMessages = async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/channels/${channel.name}/messages`, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (mounted) { setMessages(data); setIsLoading(false); }
-        }
-      } catch (error) {
-        console.error('Failed to fetch messages:', error);
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    fetchMessages();
-
-    const socket = io(import.meta.env.VITE_API_URL, {
-      extraHeaders: { 'ngrok-skip-browser-warning': 'true' },
-      auth: { token: localStorage.getItem('messenger_token') ?? '' },
-    });
-    socketRef.current = socket;
-
-    socket.on('connect', () => { socket.emit('join_channel', channel.id); });
-
-    socket.on('receive_message', (newMessage: Message) => {
-      if (mounted) setMessages(prev => [...prev, newMessage]);
-    });
-
-    socket.on('message_deleted', ({ messageId }: { messageId: string }) => {
-      if (mounted) setMessages(prev => prev.filter(m => m.id !== messageId));
-    });
-
-    return () => { mounted = false; socket.disconnect(); };
-  }, [channel.id]);
+  const { messages, setMessages, isLoading, socketRef } = useSocket(channel.id, channel.name);
+  const { searchQuery, setSearchQuery, isSearchOpen, setIsSearchOpen, matchIndex, matchingMessageIds, handleNextMatch, handlePrevMatch } = useMessageSearch(messages);
+  const { pendingFiles, addFiles, removePendingFile, clearPendingFiles } = useFileUpload();
 
   useEffect(() => {
     if (!searchQuery.trim()) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, searchQuery]);
 
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setMatchingMessageIds([]);
-      setMatchIndex(-1);
-      return;
-    }
-    const query = searchQuery.toLowerCase();
-    const matches = messages.filter(m => m.text.toLowerCase().includes(query)).map(m => m.id);
-    setMatchingMessageIds(matches);
-    setMatchIndex(matches.length > 0 ? matches.length - 1 : -1);
-  }, [searchQuery, messages]);
-
-  useEffect(() => {
-    if (matchIndex >= 0 && matchIndex < matchingMessageIds.length) {
-      const element = document.getElementById(`message-${matchingMessageIds[matchIndex]}`);
-      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [matchIndex, matchingMessageIds]);
-
-  const handleNextMatch = () => {
-    if (matchingMessageIds.length === 0) return;
-    setMatchIndex(prev => (prev < matchingMessageIds.length - 1 ? prev + 1 : 0));
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(e.target.files ?? []));
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handlePrevMatch = () => {
-    if (matchingMessageIds.length === 0) return;
-    setMatchIndex(prev => (prev > 0 ? prev - 1 : matchingMessageIds.length - 1));
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setInputValue(prev => prev + emojiData.emoji);
+    setIsEmojiOpen(false);
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -158,7 +73,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
           },
           body: formData,
         });
-        const { fileUrl, fileName, fileType } = await res.json();
+        const { fileUrl, fileName, fileType } = await res.json() as { fileUrl: string; fileName: string; fileType: string };
         socketRef.current.emit('send_message', {
           channelId: channel.id,
           senderId: user.id,
@@ -167,9 +82,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ channel, user }) => {
           fileName,
           fileType,
         });
-        if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
       }
-      setPendingFiles([]);
+      clearPendingFiles();
 
       if (inputValue.trim()) {
         socketRef.current.emit('send_message', {
