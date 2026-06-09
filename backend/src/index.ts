@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
+import { rateLimit } from 'express-rate-limit';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -41,9 +42,12 @@ const upload = multer({
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('JWT_SECRET env variable is required');
 
+const revokedTokens = new Set<string>();
+
 const auth = (req: Request, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).end();
+  if (revokedTokens.has(token)) return res.status(401).end();
   try {
     (req as any).user = jwt.verify(token, JWT_SECRET);
     next();
@@ -68,6 +72,12 @@ const prisma = new PrismaClient({ adapter });
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
+
+app.post('/api/auth/logout', auth, (req, res) => {
+  const token = req.headers.authorization!.split(' ')[1];
+  revokedTokens.add(token);
+  res.json({ success: true });
+});
 
 app.post('/api/upload', auth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -143,7 +153,15 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many login attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
   try {

@@ -40,7 +40,14 @@ function App() {
     fetchChannels();
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const token = localStorage.getItem('messenger_token');
+    if (token) {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => {});
+    }
     localStorage.removeItem('messenger_user');
     localStorage.removeItem('messenger_token');
     setUser(null);
