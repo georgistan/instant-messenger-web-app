@@ -74,7 +74,7 @@ app.use(express.json());
 app.use('/uploads', express.static(uploadsDir));
 
 app.post('/api/auth/logout', auth, (req, res) => {
-  const token = req.headers.authorization!.split(' ')[1];
+  const token = req.headers.authorization!.split(' ')[1]!;
   revokedTokens.add(token);
   res.json({ success: true });
 });
